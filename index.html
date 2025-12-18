@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Recipe 1 game</title>
+    <title>JS Grand Prix: New Montreal Layout</title>
     <style>
         body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Segoe UI', sans-serif; user-select: none; }
         canvas { display: block; }
@@ -101,7 +101,7 @@
 
 <div id="main-menu">
     <h1>Recipe 1 Grand Prix</h1>
-    <div style="color:#888; margin-bottom: 20px;">v1.8 - MONTREAL FIX</div>
+    <div style="color:#888; margin-bottom: 20px;">v1.7 - NEW MONTREAL LAYOUT</div>
     
     <div class="menu-row">
         <div class="menu-col">
@@ -191,7 +191,7 @@
 /** CONSTANTS & CONFIG */
 const TOTAL_LAPS = 5;
 const TOTAL_CARS = 16;
-const TRACK_WIDTH = 150; 
+const TRACK_WIDTH = 150; // Slightly narrower for the new layout
 const BASE_FRICTION_ROAD = 0.98; 
 const BASE_FRICTION_GRASS = 0.88; 
 const BASE_ACCEL = 0.2;
@@ -254,8 +254,8 @@ const MAPS = {
         {x:0, y:600}, {x:0, y:0}
     ],
     "MONTREAL": [ 
-        // ORIGINAL LAYOUT (Positive X), BUT REVERSED ORDER (See startGame)
-        {x: 0, y: 0},
+        // MOVED START LINE FORWARD to x:600 (Prev was 0) to fit 16 cars
+        {x: 600, y: 0}, 
         {x: 1000, y: 0},
         {x: 1200, y: -100}, {x: 1200, y: -300}, {x: 1000, y: -400},
         {x: 800, y: -400}, {x: 800, y: -700}, 
@@ -612,14 +612,7 @@ function startGame() {
     difficultySetting = document.getElementById('diff-select').value;
     selectedTeamId = parseInt(document.getElementById('team-select').value);
     
-    // Copy the map data
-    activeTrack = [...MAPS[mapKey]];
-    
-    // IF MONTREAL, REVERSE THE ARRAY TO DRIVE OTHER WAY (Fixes "wrong side")
-    if (mapKey === "MONTREAL") {
-        activeTrack.reverse();
-    }
-    
+    activeTrack = MAPS[mapKey];
     generateGrandstands();
 
     document.getElementById('main-menu').classList.add('hidden');
@@ -638,13 +631,9 @@ function restartRace() {
 
 function setupGrid(isDemo) {
     cars = [];
-    
-    // CRITICAL FIX: Calculate orientation based on P0 -> P1 
-    // This ensures cars face the correct "Next Point" regardless of track direction
+    const pEnd = activeTrack[activeTrack.length - 1];
     const pStart = activeTrack[0];
-    const pNext = activeTrack[1]; 
-    trackStartAngle = Math.atan2(pNext.y - pStart.y, pNext.x - pStart.x);
-    
+    trackStartAngle = Math.atan2(pStart.y - pEnd.y, pStart.x - pEnd.x);
     const backAngle = trackStartAngle + Math.PI;
     const sideAngle = trackStartAngle + Math.PI/2; 
 
@@ -654,8 +643,7 @@ function setupGrid(isDemo) {
         const col = i % 2; 
         
         const distBack = 300 + (row * 90);
-        // FIX: Swapped logic to flip grid side
-        const latOffset = (col === 0 ? 1 : -1) * 35; 
+        const latOffset = (col === 0 ? -1 : 1) * 35;
         
         const startX = pStart.x + (Math.cos(backAngle) * distBack) + (Math.cos(sideAngle) * latOffset);
         const startY = pStart.y + (Math.sin(backAngle) * distBack) + (Math.sin(sideAngle) * latOffset);
@@ -770,9 +758,7 @@ function drawTrack() {
             const row = Math.floor(i / 2);
             const col = i % 2; 
             const distBack = 300 + (row * 90);
-            
-            // MATCHED GRID OFFSET TO CAR OFFSET
-            const latOffset = (col === 0 ? 1 : -1) * 35;
+            const latOffset = (col === 0 ? -1 : 1) * 35;
             
             const gx = pStart.x + (Math.cos(backAngle) * distBack) + (Math.cos(sideAngle) * latOffset);
             const gy = pStart.y + (Math.sin(backAngle) * distBack) + (Math.sin(sideAngle) * latOffset);
