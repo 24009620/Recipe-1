@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>JS Grand Prix: Montreal Grid Fix</title>
+    <title>JS Grand Prix: Montreal Corrected</title>
     <style>
         body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Segoe UI', sans-serif; user-select: none; }
         canvas { display: block; }
@@ -101,7 +101,7 @@
 
 <div id="main-menu">
     <h1>Formula JS</h1>
-    <div style="color:#888; margin-bottom: 20px;">v1.5 - MONTREAL GRID FIX</div>
+    <div style="color:#888; margin-bottom: 20px;">v1.8 - MONTREAL FIX</div>
     
     <div class="menu-row">
         <div class="menu-col">
@@ -113,7 +113,7 @@
                 <option value="SUZUKA">Suzuka (Japan)</option>
                 <option value="AUSTRIA">Austria (Red Bull Ring)</option>
                 <option value="INTERLAGOS">Interlagos (Brazil)</option>
-                <option value="MONTREAL">Montreal (Canada)</option>
+                <option value="MONTREAL" selected>Montreal (Canada)</option>
             </select>
 
             <label style="color:#aaa; font-size:14px; margin-top: 10px;">DIFFICULTY & RULES</label>
@@ -148,10 +148,10 @@
         <div id="res-pos" class="result-pos">P1</div>
         <br>
         <div class="result-label">TOTAL TIME</div>
-        <div id="res-time" class="result-time">1:23.45</div>
+        <div id="res-time" class="result-time">0:00.00</div>
         
         <div class="result-label">BEST LAP</div>
-        <div id="res-best" class="result-time" style="color:#aaa; font-size: 24px;">0:15.22</div>
+        <div id="res-best" class="result-time" style="color:#aaa; font-size: 24px;">0:00.00</div>
     </div>
     <div style="margin-top: 20px;">
         <button onclick="restartRace()">RESTART</button>
@@ -191,7 +191,7 @@
 /** CONSTANTS & CONFIG */
 const TOTAL_LAPS = 5;
 const TOTAL_CARS = 16;
-const TRACK_WIDTH = 180;
+const TRACK_WIDTH = 150; 
 const BASE_FRICTION_ROAD = 0.98; 
 const BASE_FRICTION_GRASS = 0.88; 
 const BASE_ACCEL = 0.2;
@@ -254,25 +254,18 @@ const MAPS = {
         {x:0, y:600}, {x:0, y:0}
     ],
     "MONTREAL": [ 
-        // 0. Start Line (Driving Left)
-        {x:0, y:0},
-        // 1. Senna 'S' (Left then Right)
-        {x:-200, y:0}, {x:-400, y:100}, {x:-500, y:300}, 
-        {x:-300, y:400}, {x:-100, y:500},
-        // 2. Right Hander onto Back Straight
-        {x:200, y:500}, 
-        // 3. Back Section
-        {x:600, y:600}, {x:800, y:500}, {x:1200, y:500},
-        // 4. Hairpin Area
-        {x:1400, y:400}, {x:1400, y:200}, {x:1200, y:100},
-        // 5. Casino Straight (LONG)
-        {x:0, y:100}, 
-        // 6. Wall of Champions Chicane
-        {x:-200, y:-100}, 
-        // 7. Final Straight (Extended for Grid)
-        {x:1600, y:-100}, {x:1600, y:0} 
-        // Note: The loop closes from (1600,0) back to (0,0) 
-        // providing a massive straight for the grid.
+        // ORIGINAL LAYOUT (Positive X), BUT REVERSED ORDER (See startGame)
+        {x: 0, y: 0},
+        {x: 1000, y: 0},
+        {x: 1200, y: -100}, {x: 1200, y: -300}, {x: 1000, y: -400},
+        {x: 800, y: -400}, {x: 800, y: -700}, 
+        {x: 500, y: -700}, {x: 500, y: -1100}, 
+        {x: 300, y: -1200}, {x: 100, y: -1100}, {x: 200, y: -900},
+        {x: 0, y: -1000}, {x: -200, y: -1200}, {x: -400, y: -1100}, 
+        {x: -500, y: -900}, {x: -400, y: -700}, 
+        {x: -200, y: -500}, {x: -300, y: -300},
+        {x: -600, y: -200}, {x: -700, y: 0},
+        {x: 0, y: 0}
     ]
 };
 
@@ -367,9 +360,11 @@ class Car {
         this.grip = teamData.grip * diffGripMod;
         
         this.lap = 1;
+        this.raceStartTime = 0; 
         this.currentLapStart = 0;
         this.lastLapTime = 0;
         this.bestLapTime = 9999;
+        this.totalRaceTime = 0; 
         this.nextWaypointIndex = 0; 
         this.finished = false;
         
@@ -516,7 +511,11 @@ class Car {
         }
         this.currentLapStart = now;
         this.lap++;
-        if (this.lap > TOTAL_LAPS) this.finished = true;
+        if (this.lap > TOTAL_LAPS) {
+            this.finished = true;
+            // CALCULATE FINAL RACE TIME
+            this.totalRaceTime = (now - this.raceStartTime) / 1000;
+        }
     }
 
     draw() {
@@ -613,7 +612,14 @@ function startGame() {
     difficultySetting = document.getElementById('diff-select').value;
     selectedTeamId = parseInt(document.getElementById('team-select').value);
     
-    activeTrack = MAPS[mapKey];
+    // Copy the map data
+    activeTrack = [...MAPS[mapKey]];
+    
+    // IF MONTREAL, REVERSE THE ARRAY TO DRIVE OTHER WAY (Fixes "wrong side")
+    if (mapKey === "MONTREAL") {
+        activeTrack.reverse();
+    }
+    
     generateGrandstands();
 
     document.getElementById('main-menu').classList.add('hidden');
@@ -632,9 +638,13 @@ function restartRace() {
 
 function setupGrid(isDemo) {
     cars = [];
-    const pEnd = activeTrack[activeTrack.length - 1];
+    
+    // CRITICAL FIX: Calculate orientation based on P0 -> P1 
+    // This ensures cars face the correct "Next Point" regardless of track direction
     const pStart = activeTrack[0];
-    trackStartAngle = Math.atan2(pStart.y - pEnd.y, pStart.x - pEnd.x);
+    const pNext = activeTrack[1]; 
+    trackStartAngle = Math.atan2(pNext.y - pStart.y, pNext.x - pStart.x);
+    
     const backAngle = trackStartAngle + Math.PI;
     const sideAngle = trackStartAngle + Math.PI/2; 
 
@@ -644,7 +654,8 @@ function setupGrid(isDemo) {
         const col = i % 2; 
         
         const distBack = 300 + (row * 90);
-        const latOffset = (col === 0 ? -1 : 1) * 35;
+        // FIX: Swapped logic to flip grid side
+        const latOffset = (col === 0 ? 1 : -1) * 35; 
         
         const startX = pStart.x + (Math.cos(backAngle) * distBack) + (Math.cos(sideAngle) * latOffset);
         const startY = pStart.y + (Math.sin(backAngle) * distBack) + (Math.sin(sideAngle) * latOffset);
@@ -683,7 +694,13 @@ function startCountdown() {
             ui.style.color = "#00ff00";
             gameState = 'RACING';
             const now = Date.now();
-            cars.forEach(c => c.currentLapStart = now);
+            
+            // Set Start Times
+            cars.forEach(c => {
+                c.currentLapStart = now;
+                c.raceStartTime = now;
+            });
+            
             setTimeout(() => { if(gameState==='RACING') ui.innerText = ""; }, 1000);
         }
     }, 1000);
@@ -753,7 +770,9 @@ function drawTrack() {
             const row = Math.floor(i / 2);
             const col = i % 2; 
             const distBack = 300 + (row * 90);
-            const latOffset = (col === 0 ? -1 : 1) * 35;
+            
+            // MATCHED GRID OFFSET TO CAR OFFSET
+            const latOffset = (col === 0 ? 1 : -1) * 35;
             
             const gx = pStart.x + (Math.cos(backAngle) * distBack) + (Math.cos(sideAngle) * latOffset);
             const gy = pStart.y + (Math.sin(backAngle) * distBack) + (Math.sin(sideAngle) * latOffset);
@@ -797,14 +816,14 @@ function updateUI() {
         gameState = 'FINISHED';
         
         // Show Results Screen
-        const totalTime = (now - cars.reduce((min, c) => Math.min(min, c.currentLapStart), now)) / 1000; // Approx
-        
         document.getElementById('results-menu').classList.remove('hidden');
         document.getElementById('res-pos').innerText = "P" + rank;
         document.getElementById('res-pos').style.color = (rank <= 3) ? "#00ff00" : "#e63946";
         
-        let mins = Math.floor(curTime / 60);
-        let secs = (curTime % 60).toFixed(2);
+        // FIX: Display Actual Total Race Time
+        const tTime = player.totalRaceTime;
+        let mins = Math.floor(tTime / 60);
+        let secs = (tTime % 60).toFixed(2);
         document.getElementById('res-time').innerText = (mins > 0 ? mins + ":" : "") + (secs < 10 && mins > 0 ? "0" : "") + secs;
         
         let bMins = Math.floor(player.bestLapTime / 60);
