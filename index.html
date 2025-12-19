@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>JS Grand Prix: New Montreal Layout</title>
+    <title>Recipe 1: Grand Prix Edition</title>
     <style>
         body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Segoe UI', sans-serif; user-select: none; }
         canvas { display: block; }
@@ -70,6 +70,14 @@
             width: 250px; min-height: 80px; background: #222; border: 1px solid #444; color: #ccc;
             padding: 10px; font-size: 14px; line-height: 1.4; font-style: italic;
         }
+        
+        .record-notification {
+            position: absolute; top: 15%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 60px; font-weight: 900; color: #00ff00;
+            text-shadow: 0 0 20px rgba(0,255,0,0.8);
+            display: none; font-style: italic; z-index: 20;
+        }
+
         .stat-good { color: #4ade80; }
         .stat-neutral { color: #fff; }
         .stat-bad { color: #f87171; }
@@ -100,8 +108,8 @@
 <body>
 
 <div id="main-menu">
-    <h1>Recipe 1 Grand Prix</h1>
-    <div style="color:#888; margin-bottom: 20px;">v2.2 - RACING LINE FEEDBACK</div>
+    <h1>Recipe 1: Grand Prix Edition</h1>
+    <div style="color:#888; margin-bottom: 20px;">v2.3 - LAP RECORDS</div>
     
     <div class="menu-row">
         <div class="menu-col">
@@ -122,6 +130,8 @@
                 <option value="PRO" selected>Pro (5s Stop Penalty)</option>
                 <option value="LEGEND">Legend (10s Stop Penalty)</option>
             </select>
+            
+            <button onclick="downloadRecords()" style="margin-top:20px; font-size:14px; padding:10px; background:#444;">Download Records (CSV)</button>
         </div>
 
         <div class="menu-col">
@@ -166,6 +176,8 @@
             <span id="penalty-timer" style="font-size:60px; color:yellow;">5.0</span>s
         </div>
     </div>
+    
+    <div id="new-record-msg" class="record-notification">NEW LAP RECORD!</div>
 
     <div id="stats" class="hud-panel">
         POS: <span id="pos-disp">--</span>/16<br>
@@ -173,7 +185,10 @@
     </div>
     <div id="times" class="hud-panel">
         TIME: <span id="cur-time">0.00</span><br>
-        LAST: <span id="last-lap">--:--</span>
+        LAST: <span id="last-lap">--:--</span><br>
+        <div style="border-top:2px solid #555; margin-top:5px; padding-top:5px; color:#aaa; font-size:16px;">
+            REC: <span id="track-record">--:--</span>
+        </div>
     </div>
     <div id="speedometer">
         <div class="gear-disp" id="gear">N</div>
@@ -207,6 +222,53 @@ const BASE_ACCEL = 0.2;
 const BASE_MAX_SPEED = 16;
 const BASE_TURN_SPEED = 0.065;
 
+/** RECORDS SYSTEM */
+let trackRecords = {};
+
+function loadRecords() {
+    const data = localStorage.getItem('jsgp_records');
+    if (data) {
+        trackRecords = JSON.parse(data);
+    }
+}
+
+function saveRecords() {
+    localStorage.setItem('jsgp_records', JSON.stringify(trackRecords));
+}
+
+function formatTime(t) {
+    if(!t || t === 9999) return "--:--";
+    let mins = Math.floor(t / 60);
+    let secs = (t % 60).toFixed(2);
+    return (mins > 0 ? mins + ":" : "") + (secs < 10 && mins > 0 ? "0" : "") + secs;
+}
+
+function checkRecord(trackName, time) {
+    if (!trackRecords[trackName] || time < trackRecords[trackName]) {
+        trackRecords[trackName] = time;
+        saveRecords();
+        return true;
+    }
+    return false;
+}
+
+function downloadRecords() {
+    let csvContent = "data:text/csv;charset=utf-8,Track,Best Lap Time (Seconds)\n";
+    for(let key in MAPS) {
+        let time = trackRecords[key] ? trackRecords[key].toFixed(3) : "No Record";
+        csvContent += `${key},${time}\n`;
+    }
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "js_grand_prix_records.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+loadRecords(); // Init
+
 /** TEAMS DATA */
 const TEAMS = [
     { id: 0, name: "Scuderia Rosso", color: "#d90429", speed: 1.01, handling: 1.00, grip: 1.00, desc: "<span class='stat-good'>Balanced Spec</span><br>Slight edge on straights." },
@@ -229,7 +291,6 @@ const MAPS = {
         {x:0, y:800}, {x:0, y:0}
     ],
     "SPA": [
-        /* MODIFIED AGAIN: Moved y from -300 down to -100 to lower start line */
         {x:0, y:-100}, {x:300, y:-400}, {x:300, y:0}, {x:0, y:400}, 
         {x:-400, y:800}, {x:-400, y:1200}, {x:-200, y:1400}, {x:0, y:1600}, 
         {x:1000, y:2000}, {x:1400, y:1800}, {x:1600, y:2000}, {x:1400, y:2200}, 
@@ -295,6 +356,7 @@ let grandstands = [];
 let difficultySetting = "PRO"; 
 let countdownTimer = null;
 let selectedTeamId = 1;
+let currentMapKey = "SILVERSTONE";
 
 // Map & Boundary Limits
 let mapMinX=0, mapMaxX=0, mapMinY=0, mapMaxY=0;
@@ -541,6 +603,18 @@ class Car {
         if (this.currentLapStart > 0) {
             this.lastLapTime = (now - this.currentLapStart) / 1000;
             if(this.lastLapTime < this.bestLapTime) this.bestLapTime = this.lastLapTime;
+
+            // RECORD CHECK
+            if (this.isPlayer && gameState === 'RACING') {
+                if (checkRecord(currentMapKey, this.lastLapTime)) {
+                    // Show Notification
+                    const n = document.getElementById('new-record-msg');
+                    n.style.display = 'block';
+                    setTimeout(() => n.style.display = 'none', 3000);
+                    // Update HUD immediately
+                    document.getElementById('track-record').innerText = formatTime(trackRecords[currentMapKey]);
+                }
+            }
         }
         this.currentLapStart = now;
         this.lap++;
@@ -661,18 +735,19 @@ function showMenu() {
     document.getElementById('ui-layer').classList.add('hidden');
     document.getElementById('results-menu').classList.add('hidden');
     document.getElementById('penalty-overlay').classList.add('hidden');
-    
+    document.getElementById('new-record-msg').style.display = 'none';
+
     activeTrack = MAPS["SILVERSTONE"]; 
     generateGrandstands(); 
     setupGrid(true); 
 }
 
 function startGame() {
-    const mapKey = document.getElementById('map-select').value;
+    currentMapKey = document.getElementById('map-select').value;
     difficultySetting = document.getElementById('diff-select').value;
     selectedTeamId = parseInt(document.getElementById('team-select').value);
     
-    activeTrack = MAPS[mapKey];
+    activeTrack = MAPS[currentMapKey];
     generateGrandstands();
 
     audioMenu.pause();
@@ -684,6 +759,9 @@ function startGame() {
     document.getElementById('results-menu').classList.add('hidden');
     document.getElementById('penalty-overlay').classList.add('hidden');
     document.getElementById('warn-count').innerText = "0";
+    
+    // Set Record Display
+    document.getElementById('track-record').innerText = formatTime(trackRecords[currentMapKey]);
     
     setupGrid(false);
     startCountdown();
@@ -815,12 +893,11 @@ function drawTrack() {
     ctx.beginPath(); ctx.moveTo(activeTrack[0].x, activeTrack[0].y);
     activeTrack.forEach(p => ctx.lineTo(p.x, p.y)); ctx.closePath(); ctx.stroke();
 
-    // DYNAMIC RACING LINE (NEW)
+    // DYNAMIC RACING LINE
     if (gameState === 'RACING' && cars.length > 0) {
         const player = cars[TOTAL_CARS-1];
         let minDist = Infinity;
         
-        // Find distance to track center line
         for (let i = 0; i < activeTrack.length - 1; i++) {
             let d = distToSegment(player.x, player.y, activeTrack[i].x, activeTrack[i].y, activeTrack[i+1].x, activeTrack[i+1].y);
             if(d < minDist) minDist = d;
@@ -828,7 +905,6 @@ function drawTrack() {
         let dLast = distToSegment(player.x, player.y, activeTrack[activeTrack.length-1].x, activeTrack[activeTrack.length-1].y, activeTrack[0].x, activeTrack[0].y);
         if(dLast < minDist) minDist = dLast;
 
-        // Color Logic: <25 Green, <60 Yellow, else Red
         let lineColor = "#ff0000"; // Red
         if (minDist < 25) lineColor = "#00ff00"; // Green
         else if (minDist < 60) lineColor = "#ffff00"; // Yellow
