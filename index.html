@@ -37,7 +37,7 @@
         /* Main Menu */
         #main-menu, #pause-menu, #results-menu {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: radial-gradient(circle, #2a2a2a, #000);
+            background: rgba(0, 0, 0, 0.65);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             pointer-events: auto; z-index: 10;
         }
@@ -101,7 +101,7 @@
 
 <div id="main-menu">
     <h1>Recipe 1 Grand Prix</h1>
-    <div style="color:#888; margin-bottom: 20px;">v1.7 - NEW MONTREAL LAYOUT</div>
+    <div style="color:#888; margin-bottom: 20px;">v2.2 - RACING LINE FEEDBACK</div>
     
     <div class="menu-row">
         <div class="menu-col">
@@ -179,7 +179,7 @@
         <div class="gear-disp" id="gear">N</div>
         <span class="speed-val" id="speed">0</span> <span class="speed-unit">KM/H</span>
     </div>
-    <div id="warning-box">
+    <div id="warning-box" style="bottom: 240px;"> 
         WARNINGS: <span id="warn-count">0</span>/5
     </div>
     <div id="center-msg"></div>
@@ -188,10 +188,19 @@
 <canvas id="gameCanvas"></canvas>
 
 <script>
+/** AUDIO SETUP */
+const audioMenu = new Audio('formula-1-theme-8-bit.mp3');
+audioMenu.loop = true;
+audioMenu.volume = 0.5;
+
+const audioRace = new Audio('grand-prix.mp3');
+audioRace.loop = true;
+audioRace.volume = 0.4;
+
 /** CONSTANTS & CONFIG */
 const TOTAL_LAPS = 5;
 const TOTAL_CARS = 16;
-const TRACK_WIDTH = 150; // Slightly narrower for the new layout
+const TRACK_WIDTH = 150; 
 const BASE_FRICTION_ROAD = 0.98; 
 const BASE_FRICTION_GRASS = 0.88; 
 const BASE_ACCEL = 0.2;
@@ -220,7 +229,8 @@ const MAPS = {
         {x:0, y:800}, {x:0, y:0}
     ],
     "SPA": [
-        {x:0, y:-600}, {x:300, y:-400}, {x:300, y:0}, {x:0, y:400}, 
+        /* MODIFIED AGAIN: Moved y from -300 down to -100 to lower start line */
+        {x:0, y:-100}, {x:300, y:-400}, {x:300, y:0}, {x:0, y:400}, 
         {x:-400, y:800}, {x:-400, y:1200}, {x:-200, y:1400}, {x:0, y:1600}, 
         {x:1000, y:2000}, {x:1400, y:1800}, {x:1600, y:2000}, {x:1400, y:2200}, 
         {x:400, y:2200}, {x:-200, y:2000}, {x:-400, y:2200}, 
@@ -254,7 +264,6 @@ const MAPS = {
         {x:0, y:600}, {x:0, y:0}
     ],
     "MONTREAL": [ 
-        // MOVED START LINE FORWARD to x:600 (Prev was 0) to fit 16 cars
         {x: 600, y: 0}, 
         {x: 1000, y: 0},
         {x: 1200, y: -100}, {x: 1200, y: -300}, {x: 1000, y: -400},
@@ -279,12 +288,18 @@ let mouse = { x: 0, y: 0 };
 let cars = [];
 let gameState = 'MENU'; 
 let camera = { x: 0, y: 0 };
+let currentZoom = 1.0; 
 let activeTrack = [];
 let trackStartAngle = 0; 
 let grandstands = []; 
 let difficultySetting = "PRO"; 
 let countdownTimer = null;
 let selectedTeamId = 1;
+
+// Map & Boundary Limits
+let mapMinX=0, mapMaxX=0, mapMinY=0, mapMaxY=0;
+let boundMinX=0, boundMaxX=0, boundMinY=0, boundMaxY=0;
+const BOUNDARY_BUFFER = 1000; 
 
 /** UTILITIES */
 function resize() {
@@ -303,6 +318,12 @@ window.addEventListener('keydown', e => {
     if (e.key === "Escape") togglePause();
 });
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+window.addEventListener('click', () => {
+    if(gameState === 'MENU' && audioMenu.paused) {
+        audioMenu.play().catch(e => console.log("Audio waiting for interaction"));
+    }
+}, {once:true});
+
 function dist(x1, y1, x2, y2) { return Math.sqrt((x2-x1)**2 + (y2-y1)**2); }
 
 /** POPULATE MENU */
@@ -326,9 +347,11 @@ function togglePause() {
     if (gameState === 'RACING') {
         gameState = 'PAUSED';
         document.getElementById('pause-menu').classList.remove('hidden');
+        audioRace.pause();
     } else if (gameState === 'PAUSED') {
         gameState = 'RACING';
         document.getElementById('pause-menu').classList.add('hidden');
+        audioRace.play();
     }
 }
 
@@ -379,7 +402,7 @@ class Car {
     }
 
     update() {
-        if (gameState !== 'RACING' && gameState !== 'FINISHED') return;
+        if (gameState !== 'RACING' && gameState !== 'FINISHED' && gameState !== 'MENU') return;
         
         if (this.finished) {
             this.vx *= 0.9; this.vy *= 0.9;
@@ -412,7 +435,8 @@ class Car {
                 if (keys.a) this.angle -= this.turnRate * dir;
                 if (keys.d) this.angle += this.turnRate * dir;
             }
-        } else if (!this.isPlayer && gameState === 'RACING') {
+        } 
+        else if ((!this.isPlayer && gameState === 'RACING') || gameState === 'MENU') {
             this.runAI();
         }
 
@@ -438,10 +462,19 @@ class Car {
         }
 
         this.x += this.vx; this.y += this.vy;
+
+        // MAP BOUNDARY CHECK
+        if(this.x < boundMinX) { this.x = boundMinX + 1; this.vx *= -0.5; }
+        if(this.x > boundMaxX) { this.x = boundMaxX - 1; this.vx *= -0.5; }
+        if(this.y < boundMinY) { this.y = boundMinY + 1; this.vy *= -0.5; }
+        if(this.y > boundMaxY) { this.y = boundMaxY - 1; this.vy *= -0.5; }
+
         this.checkWaypoints();
     }
 
     addWarning() {
+        if(gameState === 'MENU') return;
+        
         this.warningCount++;
         if (this.isPlayer) {
             const warnUi = document.getElementById('warn-count');
@@ -512,9 +545,10 @@ class Car {
         this.currentLapStart = now;
         this.lap++;
         if (this.lap > TOTAL_LAPS) {
-            this.finished = true;
-            // CALCULATE FINAL RACE TIME
-            this.totalRaceTime = (now - this.raceStartTime) / 1000;
+            if(gameState !== 'MENU') {
+                this.finished = true;
+                this.totalRaceTime = (now - this.raceStartTime) / 1000;
+            }
         }
     }
 
@@ -532,11 +566,11 @@ class Car {
         ctx.fillRect(-10, -5, 20, 10);
         ctx.fillRect(-12, -10, 14, 6); ctx.fillRect(-12, 4, 14, 6);
 
-        ctx.fillStyle = this.isPlayer ? "#222" : "#333";
+        ctx.fillStyle = (this.isPlayer && gameState === 'RACING') ? "#222" : "#333";
         ctx.fillRect(20, -14, 4, 28);
         ctx.fillRect(-22, -12, 6, 24);
 
-        ctx.fillStyle = this.isPlayer ? "#fff" : "#ff0";
+        ctx.fillStyle = (this.isPlayer && gameState === 'RACING') ? "#fff" : "#ff0";
         ctx.beginPath(); ctx.arc(-2, 0, 3.5, 0, Math.PI*2); ctx.fill();
         
         if (this.stopPenaltyTime > 0) {
@@ -580,9 +614,29 @@ function distToSegment(x, y, x1, y1, x2, y2) {
     return Math.sqrt(dx * dx + dy * dy);
 }
 
+function calculateTrackExtents() {
+    mapMinX = Infinity; mapMaxX = -Infinity;
+    mapMinY = Infinity; mapMaxY = -Infinity;
+    
+    activeTrack.forEach(p => {
+        if(p.x < mapMinX) mapMinX = p.x;
+        if(p.x > mapMaxX) mapMaxX = p.x;
+        if(p.y < mapMinY) mapMinY = p.y;
+        if(p.y > mapMaxY) mapMaxY = p.y;
+    });
+
+    // Calculate Game Boundaries (Collision)
+    boundMinX = mapMinX - BOUNDARY_BUFFER;
+    boundMaxX = mapMaxX + BOUNDARY_BUFFER;
+    boundMinY = mapMinY - BOUNDARY_BUFFER;
+    boundMaxY = mapMaxY + BOUNDARY_BUFFER;
+}
+
 function generateGrandstands() {
     grandstands = [];
     const points = activeTrack;
+    calculateTrackExtents(); 
+
     const addStand = (p1, p2) => {
         const d = dist(p1.x, p1.y, p2.x, p2.y);
         if (d > 400) { 
@@ -598,12 +652,18 @@ function generateGrandstands() {
 
 function showMenu() {
     gameState = 'MENU';
+    audioRace.pause();
+    audioRace.currentTime = 0;
+    audioMenu.play().catch(e => { });
+
     document.getElementById('main-menu').classList.remove('hidden');
     document.getElementById('pause-menu').classList.add('hidden');
     document.getElementById('ui-layer').classList.add('hidden');
     document.getElementById('results-menu').classList.add('hidden');
     document.getElementById('penalty-overlay').classList.add('hidden');
+    
     activeTrack = MAPS["SILVERSTONE"]; 
+    generateGrandstands(); 
     setupGrid(true); 
 }
 
@@ -614,6 +674,10 @@ function startGame() {
     
     activeTrack = MAPS[mapKey];
     generateGrandstands();
+
+    audioMenu.pause();
+    audioMenu.currentTime = 0;
+    audioRace.play();
 
     document.getElementById('main-menu').classList.add('hidden');
     document.getElementById('ui-layer').classList.remove('hidden');
@@ -660,6 +724,9 @@ function setupGrid(isDemo) {
     if(!isDemo && cars.length > 0) {
         camera.x = cars[TOTAL_CARS-1].x;
         camera.y = cars[TOTAL_CARS-1].y;
+    } else if (isDemo && cars.length > 0) {
+        camera.x = cars[0].x;
+        camera.y = cars[0].y;
     }
 }
 
@@ -683,7 +750,6 @@ function startCountdown() {
             gameState = 'RACING';
             const now = Date.now();
             
-            // Set Start Times
             cars.forEach(c => {
                 c.currentLapStart = now;
                 c.raceStartTime = now;
@@ -696,6 +762,31 @@ function startCountdown() {
 
 function drawTrack() {
     ctx.save();
+    
+    // BOUNDARIES
+    ctx.lineWidth = 20;
+    ctx.strokeStyle = "rgba(255, 255, 0, 0.2)"; 
+    ctx.strokeRect(boundMinX, boundMinY, boundMaxX-boundMinX, boundMaxY-boundMinY);
+    
+    ctx.beginPath();
+    ctx.rect(boundMinX, boundMinY, boundMaxX-boundMinX, boundMaxY-boundMinY);
+    ctx.clip(); 
+    
+    const drawCautionLine = (x1, y1, x2, y2) => {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+        ctx.strokeStyle = "yellow"; ctx.lineWidth = 10; ctx.stroke();
+        ctx.strokeStyle = "black"; ctx.setLineDash([20, 20]); ctx.stroke();
+        ctx.restore();
+    };
+    
+    drawCautionLine(boundMinX, boundMinY, boundMaxX, boundMinY); // Top
+    drawCautionLine(boundMaxX, boundMinY, boundMaxX, boundMaxY); // Right
+    drawCautionLine(boundMaxX, boundMaxY, boundMinX, boundMaxY); // Bottom
+    drawCautionLine(boundMinX, boundMaxY, boundMinX, boundMinY); // Left
+    
+    
     grandstands.forEach(g => {
         ctx.translate(g.x, g.y);
         ctx.rotate(g.angle);
@@ -724,7 +815,36 @@ function drawTrack() {
     ctx.beginPath(); ctx.moveTo(activeTrack[0].x, activeTrack[0].y);
     activeTrack.forEach(p => ctx.lineTo(p.x, p.y)); ctx.closePath(); ctx.stroke();
 
-    if (gameState === 'RACING' || gameState === 'COUNTDOWN') {
+    // DYNAMIC RACING LINE (NEW)
+    if (gameState === 'RACING' && cars.length > 0) {
+        const player = cars[TOTAL_CARS-1];
+        let minDist = Infinity;
+        
+        // Find distance to track center line
+        for (let i = 0; i < activeTrack.length - 1; i++) {
+            let d = distToSegment(player.x, player.y, activeTrack[i].x, activeTrack[i].y, activeTrack[i+1].x, activeTrack[i+1].y);
+            if(d < minDist) minDist = d;
+        }
+        let dLast = distToSegment(player.x, player.y, activeTrack[activeTrack.length-1].x, activeTrack[activeTrack.length-1].y, activeTrack[0].x, activeTrack[0].y);
+        if(dLast < minDist) minDist = dLast;
+
+        // Color Logic: <25 Green, <60 Yellow, else Red
+        let lineColor = "#ff0000"; // Red
+        if (minDist < 25) lineColor = "#00ff00"; // Green
+        else if (minDist < 60) lineColor = "#ffff00"; // Yellow
+        
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth = 6;
+        ctx.setLineDash([30, 30]);
+        ctx.beginPath();
+        ctx.moveTo(activeTrack[0].x, activeTrack[0].y);
+        activeTrack.forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.closePath();
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    if (gameState === 'COUNTDOWN') {
         ctx.strokeStyle = "rgba(0, 255, 255, 0.3)";
         ctx.lineWidth = 10;
         ctx.beginPath();
@@ -749,7 +869,7 @@ function drawTrack() {
     }
     ctx.restore();
     
-    if(gameState === 'COUNTDOWN' || gameState === 'START' || gameState === 'MENU') {
+    if(gameState === 'COUNTDOWN' || gameState === 'START') {
         ctx.fillStyle = "rgba(255,255,255,0.3)";
         const backAngle = trackStartAngle + Math.PI;
         const sideAngle = trackStartAngle + Math.PI/2;
@@ -770,6 +890,52 @@ function drawTrack() {
             ctx.restore();
         }
     }
+}
+
+function drawMiniMap() {
+    if(gameState === 'MENU') return;
+
+    const mapSize = 200;
+    const margin = 20;
+    const originX = margin;
+    const originY = height - mapSize - margin;
+
+    ctx.fillStyle = "rgba(0,0,0,0.8)";
+    ctx.strokeStyle = "#e63946";
+    ctx.lineWidth = 2;
+    ctx.fillRect(originX, originY, mapSize, mapSize);
+    ctx.strokeRect(originX, originY, mapSize, mapSize);
+
+    const viewMinX = mapMinX - 200;
+    const viewMaxX = mapMaxX + 200;
+    const viewMinY = mapMinY - 200;
+    const viewMaxY = mapMaxY + 200;
+
+    const mapW = viewMaxX - viewMinX;
+    const mapH = viewMaxY - viewMinY;
+    const scale = Math.min((mapSize - 20) / mapW, (mapSize - 20) / mapH);
+
+    const toMapX = (val) => originX + 10 + (val - viewMinX) * scale;
+    const toMapY = (val) => originY + 10 + (val - viewMinY) * scale;
+
+    ctx.beginPath();
+    ctx.strokeStyle = "#555";
+    ctx.lineWidth = 4;
+    if(activeTrack.length > 0) {
+        ctx.moveTo(toMapX(activeTrack[0].x), toMapY(activeTrack[0].y));
+        activeTrack.forEach(p => ctx.lineTo(toMapX(p.x), toMapY(p.y)));
+        ctx.closePath();
+    }
+    ctx.stroke();
+
+    cars.forEach(c => {
+        const mx = toMapX(c.x);
+        const my = toMapY(c.y);
+        ctx.beginPath();
+        ctx.arc(mx, my, c.isPlayer ? 4 : 2, 0, Math.PI*2);
+        ctx.fillStyle = c.isPlayer ? "#00f5d4" : "red";
+        ctx.fill();
+    });
 }
 
 function updateUI() {
@@ -800,13 +966,10 @@ function updateUI() {
 
     if (player.finished && gameState !== 'FINISHED') {
         gameState = 'FINISHED';
-        
-        // Show Results Screen
         document.getElementById('results-menu').classList.remove('hidden');
         document.getElementById('res-pos').innerText = "P" + rank;
         document.getElementById('res-pos').style.color = (rank <= 3) ? "#00ff00" : "#e63946";
         
-        // FIX: Display Actual Total Race Time
         const tTime = player.totalRaceTime;
         let mins = Math.floor(tTime / 60);
         let secs = (tTime % 60).toFixed(2);
@@ -833,12 +996,21 @@ function loop() {
             targetX = followCar.x + (gameState === 'MENU' ? 0 : mouse.x * 0.4);
             targetY = followCar.y + (gameState === 'MENU' ? 0 : mouse.y * 0.4);
         }
+
+        let s = Math.sqrt(followCar.vx**2 + followCar.vy**2);
+        let pct = Math.min(s / followCar.maxSpeed, 1.0);
+        let targetZoom = 1.8 - (pct * 1.0); 
+        currentZoom += (targetZoom - currentZoom) * 0.05;
     }
+    
     camera.x += (targetX - camera.x) * 0.1;
     camera.y += (targetY - camera.y) * 0.1;
 
     ctx.save();
-    ctx.translate(width/2 - camera.x, height/2 - camera.y);
+    
+    ctx.translate(width/2, height/2);
+    ctx.scale(currentZoom, currentZoom);
+    ctx.translate(-camera.x, -camera.y);
     
     drawTrack();
     
@@ -848,6 +1020,8 @@ function loop() {
     cars.forEach(c => c.draw());
     
     ctx.restore();
+    
+    drawMiniMap();
     updateUI();
     requestAnimationFrame(loop);
 }
