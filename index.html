@@ -88,13 +88,6 @@
             font-size: 24px; color: #ffd700; font-weight: bold; text-shadow: 2px 2px 0 #000;
             font-style: italic; pointer-events: none;
         }
-        
-        .dev-badge {
-            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-            background: rgba(255, 0, 0, 0.7); padding: 5px 15px; color: white;
-            font-family: monospace; font-weight: bold; pointer-events: none;
-            display: none; border-radius: 4px;
-        }
 
         .btn-start { background: #e63946; border: none; font-size: 24px; padding: 20px 60px; transform: skew(-10deg); box-shadow: 0 0 20px rgba(230, 57, 70, 0.5); width: auto; margin-top: 20px; }
         .btn-start:hover { background: #ff4d5a; transform: skew(-10deg) scale(1.05); }
@@ -340,7 +333,7 @@
 </div>
 
 <div id="ui-layer" class="hidden">
-    <div id="dev-recording-ui" class="dev-badge">🔴 REC</div>
+    <div id="dev-recording-ui" class="dev-badge">240090620</div>
     <div id="career-overlay" class="career-info hidden">ROUND 1/7</div>
 
     <div id="penalty-overlay" class="hidden">
@@ -838,27 +831,29 @@ class Car {
         this.color = teamData.color;
         this.id = id; 
         
-        // --- TRUE TEAM SPECS FOR AI ---
-        let diffSpeedMod = 1.0;
-        let diffGripMod = 1.0;
-
+        // --- TRUE TEAM SPECS FOR ALL CARS ---
+        // AI cars now use exact team stats, no difficulty modifiers
         this.maxSpeed = BASE_MAX_SPEED * teamData.speed;
         this.turnRate = BASE_TURN_SPEED * teamData.handling;
         this.grip = teamData.grip;
 
+        // Only apply difficulty modifiers to AI skill/behavior, not stats
         if (!this.isPlayer) {
+            // Skill level affects AI decision making, not car performance
+            this.aiSkill = skillLevel;
+            // For AI, we can optionally add small variations within teams
+            // but keep the base stats the same
             if (difficultySetting === "ROOKIE") {
-                diffSpeedMod = 0.92;  
-                diffGripMod = 1.0;    
+                // AI makes more mistakes but car is same
+                this.aiErrorRate = 0.3;
             } else if (difficultySetting === "LEGEND") {
-                diffSpeedMod = 1.02;  
-                diffGripMod = 1.2;    
+                // AI is more precise but car is same
+                this.aiErrorRate = 0.05;
             } else {
-                diffSpeedMod = 0.98;
-                diffGripMod = 1.1; 
+                this.aiErrorRate = 0.15; // PRO
             }
-            this.maxSpeed *= diffSpeedMod;
-            this.grip *= diffGripMod;
+        } else {
+            this.aiSkill = 1.0; // Not used for players
         }
 
         this.lap = 1;
@@ -870,10 +865,11 @@ class Car {
         this.nextWaypointIndex = 0; 
         this.finished = false;
         this.hasCrossedStartLine = false;
-        this.aiSkill = skillLevel; 
+        this.aiSkill = skillLevel; // This affects decision making only
         this.offTrackTimer = 0; 
         this.warningCount = 0;
         this.stopPenaltyTime = 0;
+        this.aiErrorRate = 0.1; // Default error rate
     }
 
     update() {
@@ -1126,43 +1122,121 @@ class Car {
         }
     }
 
-    draw() {
+draw() {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.angle);
+
+    // Draw black outline around wheels (rear wheels)
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2;
+    ctx.fillStyle = "#111";
+    
+    // Rear wheels with outline
+    ctx.fillRect(10, -14, 10, 6);
+    ctx.strokeRect(10, -14, 10, 6);
+    ctx.fillRect(10, 8, 10, 6);
+    ctx.strokeRect(10, 8, 10, 6);
+    ctx.fillRect(-18, -15, 12, 8);
+    ctx.strokeRect(-18, -15, 12, 8);
+    ctx.fillRect(-18, 7, 12, 8);
+    ctx.strokeRect(-18, 7, 12, 8);
+
+    // Main car body with outline
+    ctx.fillStyle = this.color;
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 3;
+    
+    // Nose/front wing with outline
+    ctx.beginPath();
+    ctx.moveTo(22, 0);
+    ctx.lineTo(5, -4);
+    ctx.lineTo(5, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    
+    // Main chassis with outline
+    ctx.fillRect(-10, -5, 20, 10);
+    ctx.strokeRect(-10, -5, 20, 10);
+    
+    // Front wings with outline
+    ctx.fillRect(-12, -10, 14, 6);
+    ctx.strokeRect(-12, -10, 14, 6);
+    ctx.fillRect(-12, 4, 14, 6);
+    ctx.strokeRect(-12, 4, 14, 6);
+
+    // Cockpit/roll hoop with outline
+    ctx.fillStyle = (this.isPlayer && gameState === 'RACING') ? "#222" : "#333";
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2;
+    
+    ctx.fillRect(20, -14, 4, 28);
+    ctx.strokeRect(20, -14, 4, 28);
+    ctx.fillRect(-22, -12, 6, 24);
+    ctx.strokeRect(-22, -12, 6, 24);
+
+    // Driver helmet with outline
+    ctx.fillStyle = (this.isPlayer && gameState === 'RACING') ? "#fff" : "#ff0";
+    if(this.controlScheme === 'ARROWS') ctx.fillStyle = "#00f5d4"; 
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 1.5;
+    
+    ctx.beginPath();
+    ctx.arc(-2, 0, 3.5, 0, Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+    
+    // Add highlight on helmet for 3D effect
+    if (this.isPlayer && gameState === 'RACING') {
+        ctx.fillStyle = "#aaa";
+        ctx.beginPath();
+        ctx.arc(-3, -1, 1, 0, Math.PI*2);
+        ctx.fill();
+    }
+
+    // Penalty indicator (if any)
+    if (this.stopPenaltyTime > 0) {
+        ctx.restore(); 
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.fillStyle = "#ff0000";
+        ctx.font = "bold 24px monospace";
+        ctx.textAlign = "center";
+        ctx.shadowColor = "black";
+        ctx.shadowBlur = 4;
+        ctx.fillText("PENALTY", 0, -30);
+    }
+
+    // Add glow effect for player cars during race
+    if (this.isPlayer && gameState === 'RACING') {
+        ctx.restore();
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
-
-        ctx.fillStyle = "#111";
-        ctx.fillRect(10, -14, 10, 6); ctx.fillRect(10, 8, 10, 6);
-        ctx.fillRect(-18, -15, 12, 8); ctx.fillRect(-18, 7, 12, 8);
-
+        
+        // Subtle glow around player car
+        ctx.shadowColor = this.color;
+        ctx.shadowBlur = 15;
+        ctx.globalAlpha = 0.3;
+        
+        // Draw a slightly larger version for glow
         ctx.fillStyle = this.color;
-        ctx.beginPath(); ctx.moveTo(22, 0); ctx.lineTo(5, -4); ctx.lineTo(5, 4); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(22, 0);
+        ctx.lineTo(5, -4);
+        ctx.lineTo(5, 4);
+        ctx.closePath();
+        ctx.fill();
+        
         ctx.fillRect(-10, -5, 20, 10);
-        ctx.fillRect(-12, -10, 14, 6); ctx.fillRect(-12, 4, 14, 6);
-
-        ctx.fillStyle = (this.isPlayer && gameState === 'RACING') ? "#222" : "#333";
-        ctx.fillRect(20, -14, 4, 28);
-        ctx.fillRect(-22, -12, 6, 24);
-
-        ctx.fillStyle = (this.isPlayer && gameState === 'RACING') ? "#fff" : "#ff0";
-        if(this.controlScheme === 'ARROWS') ctx.fillStyle = "#00f5d4"; 
         
-        ctx.beginPath(); ctx.arc(-2, 0, 3.5, 0, Math.PI*2); ctx.fill();
-        
-        if (this.stopPenaltyTime > 0) {
-            ctx.restore(); 
-            ctx.save();
-            ctx.translate(this.x, this.y);
-            ctx.fillStyle = "#ff0000";
-            ctx.font = "bold 24px monospace";
-            ctx.textAlign = "center";
-            ctx.shadowColor = "black";
-            ctx.shadowBlur = 4;
-            ctx.fillText("PENALTY", 0, -30);
-        }
-
-        ctx.restore();
+        ctx.globalAlpha = 1.0;
+        ctx.shadowBlur = 0;
     }
+
+    ctx.restore();
+}
 }
 
 /** GAME SYSTEM */
@@ -2016,6 +2090,8 @@ function renderScene(targetCar, cam) {
     cars.forEach(c => c.draw());
     ctx.restore();
 }
+
+
 
 function loop() {
     requestAnimationFrame(loop);
