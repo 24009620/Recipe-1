@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Recipe 1: Grand Prix Edition</title>
+    <title>Recipe 1: Grand Prix Ultimate Edition</title>
     <style>
         body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Segoe UI', sans-serif; user-select: none; }
         canvas { display: block; }
@@ -38,7 +38,7 @@
         }
 
         /* Menus */
-        #main-menu, #pause-menu, #results-menu, #champ-menu, #leaderboard-view, #multiplayer-menu {
+        #main-menu, #pause-menu, #results-menu, #champ-menu, #leaderboard-view, #multiplayer-menu, #settings-menu {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.65);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -46,7 +46,7 @@
         }
         
         #pause-menu { background: rgba(0,0,0,0.85); backdrop-filter: blur(5px); }
-        #results-menu, #champ-menu, #leaderboard-view, #multiplayer-menu { background: rgba(0,0,0,0.9); backdrop-filter: blur(10px); }
+        #results-menu, #champ-menu, #leaderboard-view, #multiplayer-menu, #settings-menu { background: rgba(0,0,0,0.9); backdrop-filter: blur(10px); }
         
         .result-box {
             border: 2px solid #444; background: #222; padding: 40px; text-align: center;
@@ -88,6 +88,13 @@
             font-size: 24px; color: #ffd700; font-weight: bold; text-shadow: 2px 2px 0 #000;
             font-style: italic; pointer-events: none;
         }
+        
+        .dev-badge {
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            background: rgba(255, 0, 0, 0.7); padding: 5px 15px; color: white;
+            font-family: monospace; font-weight: bold; pointer-events: none;
+            display: none; border-radius: 4px;
+        }
 
         .btn-start { background: #e63946; border: none; font-size: 24px; padding: 20px 60px; transform: skew(-10deg); box-shadow: 0 0 20px rgba(230, 57, 70, 0.5); width: auto; margin-top: 20px; }
         .btn-start:hover { background: #ff4d5a; transform: skew(-10deg) scale(1.05); }
@@ -113,6 +120,28 @@
         table.leaderboard tr:nth-child(even) { background: #2a2a2a; }
         table.leaderboard tr.player-row { background: #2d4a2d; border-left: 4px solid #00ff00; }
 
+        /* Settings UI */
+        .btn-settings {
+            position: absolute; bottom: 20px; right: 20px;
+            background: #333; border: 2px solid #555; color: #ccc;
+            font-size: 24px; width: 60px; height: 60px; border-radius: 50%;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.5); z-index: 50;
+        }
+        .btn-settings:hover { background: #444; color: white; transform: rotate(90deg); }
+
+        .settings-content {
+            display: flex; flex-direction: column; gap: 20px; width: 500px;
+        }
+        .setting-row {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #222; padding: 15px; border-left: 4px solid #555;
+        }
+        .setting-label { font-size: 18px; font-weight: bold; color: #eee; }
+        
+        input[type=range] { width: 200px; accent-color: #e63946; }
+        input[type=checkbox] { width: 25px; height: 25px; accent-color: #e63946; cursor: pointer; }
+
         #center-msg { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); font-size: 90px; font-weight: 900; color: yellow; text-shadow: 4px 4px 0 #000; text-align: center; font-style: italic; z-index: 50; }
         #penalty-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 0, 0, 0.3); display: none; display: flex; align-items: center; justify-content: center; color: white; font-size: 40px; font-weight: 900; font-style: italic; text-shadow: 2px 2px 0 #000; z-index: 5; }
         
@@ -123,7 +152,7 @@
 
 <div id="main-menu">
     <h1>Recipe 1: Grand Prix</h1>
-    <div style="color:#888; margin-bottom: 20px;">v3.4 - Prawn GP Added, Local Multiplayer, Career Mode</div>
+    <div style="color:#888; margin-bottom: 20px;">v5.2 - DYNAMIC CAMERA</div>
     
     <div class="menu-row">
         <div class="menu-col">
@@ -144,8 +173,6 @@
                 <option value="PRO" selected>Pro (5s Stop Penalty)</option>
                 <option value="LEGEND">Legend (10s Stop Penalty)</option>
             </select>
-            
-            <button onclick="downloadRecords()" style="margin-top:20px; font-size:14px; padding:10px; background:#444;">Download Records (CSV)</button>
         </div>
 
         <div class="menu-col">
@@ -162,9 +189,43 @@
         <button class="btn-multi" onclick="openMultiplayerMenu()">2 PLAYER RACE</button>
     </div>
     
+    <button class="btn-settings" onclick="openSettings()">⚙</button>
+    
     <div style="margin-top: 30px; font-size: 16px; color: #666; font-family: monospace; letter-spacing: 1px;">
         Made by 24009620
     </div>
+</div>
+
+<div id="settings-menu" class="hidden">
+    <h1>SETTINGS</h1>
+    <div class="settings-content">
+        <div class="setting-row">
+            <span class="setting-label">MASTER VOLUME</span>
+            <input type="range" min="0" max="100" value="50" oninput="updateVolume(this.value)">
+        </div>
+        
+        <div class="setting-row">
+            <span class="setting-label">DYNAMIC CAMERA</span>
+            <input type="checkbox" id="cam-rotate" onchange="toggleCameraRotation(this.checked)">
+        </div>
+        
+        <div class="setting-row">
+            <span class="setting-label">DRAW DECORATIONS</span>
+            <input type="checkbox" id="gfx-decor" checked onchange="toggleDecorations(this.checked)">
+        </div>
+
+        <div class="setting-row" style="flex-direction: column; gap: 10px; align-items: stretch;">
+            <button onclick="downloadRecords()" style="width: 100%; font-size: 16px; padding: 10px;">DOWNLOAD LAP RECORDS (CSV)</button>
+            <button onclick="clearGhostData()" style="width: 100%; font-size: 16px; padding: 10px; background:#e63946;">CLEAR GHOST DATA</button>
+            <button onclick="clearAllData()" style="width: 100%; font-size: 16px; padding: 10px; background:#333; color:#aaa;">RESET SAVE DATA</button>
+        </div>
+
+        <div class="setting-row" style="display:block; text-align:center; color:#888; font-size:14px;">
+            <div style="margin-bottom:5px;"><strong style="color:white;">P1:</strong> WASD (Move)</div>
+            <div><strong style="color:white;">P2:</strong> ARROW KEYS (Move)</div>
+        </div>
+    </div>
+    <button onclick="closeSettings()" style="margin-top:20px; width: 200px;">BACK</button>
 </div>
 
 <div id="multiplayer-menu" class="hidden">
@@ -210,7 +271,9 @@
 <div id="pause-menu" class="hidden">
     <h2>RACE PAUSED</h2>
     <button onclick="togglePause()">RESUME</button>
+    <button onclick="openSettings()" style="margin-top: 10px; background:#333;">SETTINGS</button>
     <button onclick="showMenu()" style="margin-top: 10px;">MAIN MENU</button>
+    <button class="btn-settings" style="bottom: 20px; right: 20px;" onclick="openSettings()">⚙</button>
 </div>
 
 <div id="results-menu" class="hidden">
@@ -277,6 +340,7 @@
 </div>
 
 <div id="ui-layer" class="hidden">
+    <div id="dev-recording-ui" class="dev-badge">🔴 REC</div>
     <div id="career-overlay" class="career-info hidden">ROUND 1/7</div>
 
     <div id="penalty-overlay" class="hidden">
@@ -305,7 +369,7 @@
             <span class="speed-val" id="p1-speed">0</span> <span class="speed-unit">KM/H</span>
         </div>
         <div id="p1-warning-box" class="warning-box" style="bottom: 240px;"> 
-            WARNINGS: <span id="p1-warn-count">0</span>/5
+            WARNINGS: <span id="p1-warn-count">0</span>/<span id="p1-warn-limit">5</span>
         </div>
     </div>
 
@@ -352,8 +416,13 @@ const BASE_ACCEL = 0.2;
 const BASE_MAX_SPEED = 16;
 const BASE_TURN_SPEED = 0.065;
 
+// FPS CAP VARIABLES
+const FPS = 60;
+const FRAME_INTERVAL = 1000 / FPS;
+let lastFrameTime = Date.now();
+
 const CAREER_ORDER = ["SILVERSTONE", "SPA", "MONZA", "SUZUKA", "AUSTRIA", "INTERLAGOS", "MONTREAL"];
-const POINTS_SYSTEM = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]; // P1 to P10
+const POINTS_SYSTEM = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]; 
 
 let isCareerMode = false;
 let isMultiplayer = false;
@@ -366,6 +435,17 @@ let selectedP2TeamId = 1; // For MP
 let currentMapKey = "SILVERSTONE";
 
 let trackRecords = {};
+let decorations = []; 
+let racingLine = []; // AI Path
+
+// Settings State
+let drawDecorationsEnabled = true;
+let cameraRotationEnabled = false;
+let previousMenuState = 'MENU';
+
+// --- GHOST SYSTEM ---
+let currentLapRecording = [];
+let ghostData = null; // Loaded ghost data for current map
 
 function loadRecords() {
     const data = localStorage.getItem('jsgp_records');
@@ -376,6 +456,86 @@ function loadRecords() {
 
 function saveRecords() {
     localStorage.setItem('jsgp_records', JSON.stringify(trackRecords));
+}
+
+function saveGhost(trackKey, recording) {
+    if(recording.length > 100) { 
+        const optimized = recording.filter((_, i) => i % 3 === 0);
+        localStorage.setItem('jsgp_ghost_' + trackKey, JSON.stringify(optimized));
+        console.log("Ghost saved for " + trackKey);
+        loadGhost(trackKey);
+    }
+}
+
+function loadGhost(trackKey) {
+    const raw = localStorage.getItem('jsgp_ghost_' + trackKey);
+    if(raw) {
+        ghostData = JSON.parse(raw);
+        console.log("Ghost loaded for " + trackKey);
+        return true;
+    }
+    ghostData = null;
+    return false;
+}
+
+// --- SETTINGS FUNCTIONS ---
+function openSettings() {
+    // Determine which menu to go back to
+    if (!document.getElementById('main-menu').classList.contains('hidden')) {
+        previousMenuState = 'MAIN';
+    } else if (!document.getElementById('pause-menu').classList.contains('hidden')) {
+        previousMenuState = 'PAUSE';
+    } else {
+        // Fallback or if opened during race directly (not implemented via button but safety check)
+        previousMenuState = 'MAIN';
+    }
+
+    document.getElementById('main-menu').classList.add('hidden');
+    document.getElementById('pause-menu').classList.add('hidden');
+    document.getElementById('settings-menu').classList.remove('hidden');
+}
+
+function closeSettings() {
+    document.getElementById('settings-menu').classList.add('hidden');
+    
+    if (previousMenuState === 'MAIN') {
+        document.getElementById('main-menu').classList.remove('hidden');
+    } else if (previousMenuState === 'PAUSE') {
+        document.getElementById('pause-menu').classList.remove('hidden');
+    }
+}
+
+function updateVolume(val) {
+    let v = val / 100;
+    audioMenu.volume = v;
+    audioRace.volume = v;
+}
+
+function toggleDecorations(checked) {
+    drawDecorationsEnabled = checked;
+}
+
+function toggleCameraRotation(checked) {
+    cameraRotationEnabled = checked;
+}
+
+function clearGhostData() {
+    if(confirm("Clear GHOST DATA only? Records will remain.")) {
+        for(let key in MAPS) {
+            localStorage.removeItem('jsgp_ghost_' + key);
+        }
+        ghostData = null;
+        alert("Ghost data cleared.");
+    }
+}
+
+function clearAllData() {
+    if(confirm("FULL RESET: This will delete ALL lap records and ghost data. Are you sure?")) {
+        localStorage.clear();
+        trackRecords = {};
+        ghostData = null;
+        location.reload();
+    }
 }
 
 function formatTime(t) {
@@ -415,11 +575,11 @@ loadRecords();
 const TEAMS = [
     { id: 0, name: "Scuderia Rosso", color: "#d90429", speed: 1.01, handling: 1.00, grip: 1.00, desc: "<span class='stat-good'>Balanced Spec</span><br>Slight edge on straights." },
     { id: 1, name: "Cyan Arrow", color: "#00f5d4", speed: 1.00, handling: 1.00, grip: 1.00, desc: "<span class='stat-good'>Balanced Spec</span><br>Standard setup." },
-    { id: 2, name: "Bull Racing", color: "#001d3d", speed: 1.005, handling: 1.005, grip: 1.001, desc: "<span class='stat-good'>Balanced Spec</span><br>Very agile." },
+    { id: 2, name: "Bull Racing", color: "#001d3d", speed: 1.005, handling: 1.005, grip: 1.00, desc: "<span class='stat-good'>Balanced Spec</span><br>Very agile." },
     { id: 3, name: "Papaya Speed", color: "#fb8500", speed: 1.01, handling: 0.99, grip: 1.00, desc: "<span class='stat-good'>Balanced Spec</span><br>Aggressive gearing." },
     { id: 4, name: "Verde Martin", color: "#006400", speed: 1.00, handling: 1.01, grip: 1.00, desc: "<span class='stat-good'>Balanced Spec</span><br>Good turn-in." },
     { id: 5, name: "Alpine Blue", color: "#4361ee", speed: 1.00, handling: 1.00, grip: 1.00, desc: "<span class='stat-good'>Balanced Spec</span><br>Standard setup." },
-    { id: 8, name: "Prawn GP", color: "#d6eaab", speed: 1.00, handling: 0.99, grip: 1.002, desc: "<span class='stat-good'>Balanced Spec</span><br>High Downforce." },
+    { id: 6, name: "Violet GP", color: "#7209b7", speed: 0.99, handling: 1.01, grip: 1.01, desc: "<span class='stat-good'>Balanced Spec</span><br>High Downforce." },
     { id: 7, name: "Sunny F1", color: "#ffea00", speed: 1.00, handling: 0.99, grip: 1.01, desc: "<span class='stat-good'>Balanced Spec</span><br>Reliable." }
 ];
 
@@ -579,6 +739,92 @@ function togglePause() {
     }
 }
 
+/** RACING LINE GENERATOR */
+function generateRacingLine() {
+    // Attempt to load ghost data first
+    if(loadGhost(currentMapKey)) {
+        // Ghost data is array of {x,y,speed}
+        racingLine = ghostData.map(pt => ({
+            x: pt.x,
+            y: pt.y,
+            idealSpeed: pt.speed || 15.0 // Fallback if old format
+        }));
+        return;
+    }
+
+    // Fallback: Geometric Generation (WTW)
+    racingLine = [];
+    const pts = activeTrack;
+    
+    for(let i=0; i<pts.length; i++) {
+        let prev = pts[(i - 1 + pts.length) % pts.length];
+        let curr = pts[i];
+        let next = pts[(i + 1) % pts.length];
+        
+        let v1x = curr.x - prev.x; let v1y = curr.y - prev.y;
+        let v2x = next.x - curr.x; let v2y = next.y - curr.y;
+        
+        let l1 = Math.sqrt(v1x*v1x + v1y*v1y);
+        let l2 = Math.sqrt(v2x*v2x + v2y*v2y);
+        v1x/=l1; v1y/=l1; v2x/=l2; v2y/=l2;
+        
+        let dot = v1x * v2x + v1y * v2y; 
+        let angle = Math.acos(Math.max(-1, Math.min(1, dot))); 
+        
+        let maxShift = (TRACK_WIDTH / 2) * 0.85;
+        let bisectX = v1x - v2x; 
+        let bisectY = v1y - v2y;
+        let bl = Math.sqrt(bisectX*bisectX + bisectY*bisectY);
+        let rX = curr.x;
+        let rY = curr.y;
+
+        if (bl > 0.1) {
+            bisectX /= bl; bisectY /= bl;
+            let factor = Math.min(angle, 1.5) / 1.5; 
+            rX += bisectX * maxShift * factor;
+            rY += bisectY * maxShift * factor;
+        }
+        racingLine.push({x: rX, y: rY, distToNext: l2, idealSpeed: 0});
+    }
+
+    // Speed Profiling for fallback line
+    const MAX_THEORETICAL_SPEED = 25.0; 
+    const MAX_CORNER_SPEED = 18.0; 
+    const MIN_CORNER_SPEED = 4.0;
+    const DECEL_FACTOR = 0.08;
+    
+    for(let i=0; i<racingLine.length; i++) {
+        let prev = racingLine[(i - 1 + racingLine.length) % racingLine.length];
+        let curr = racingLine[i];
+        let next = racingLine[(i + 1) % racingLine.length];
+        
+        let v1x = curr.x - prev.x; let v1y = curr.y - prev.y;
+        let v2x = next.x - curr.x; let v2y = next.y - curr.y;
+        let l1 = Math.sqrt(v1x*v1x+v1y*v1y);
+        let l2 = Math.sqrt(v2x*v2x+v2y*v2y);
+        v1x/=l1; v1y/=l1; v2x/=l2; v2y/=l2;
+        
+        let dot = v1x*v2x + v1y*v2y; 
+        
+        let curvatureSpeed = MAX_THEORETICAL_SPEED;
+        if (dot < 0.95) {
+            let severity = (1.0 - dot) / 2.0; 
+            curvatureSpeed = MIN_CORNER_SPEED + (MAX_CORNER_SPEED - MIN_CORNER_SPEED) * (1.0 - severity);
+        }
+        curr.idealSpeed = curvatureSpeed;
+    }
+    
+    for(let pass=0; pass<4; pass++) {
+        for(let i=racingLine.length-1; i>=0; i--) {
+            let curr = racingLine[i];
+            let next = racingLine[(i + 1) % racingLine.length];
+            let dist = Math.sqrt((next.x-curr.x)**2 + (next.y-curr.y)**2); // recalc dist if needed
+            let maxEntrySpeed = next.idealSpeed + (DECEL_FACTOR * dist);
+            if (maxEntrySpeed < curr.idealSpeed) curr.idealSpeed = maxEntrySpeed;
+        }
+    }
+}
+
 /** CAR CLASS */
 class Car {
     constructor(controlScheme, startX, startY, startAngle, teamData, skillLevel, id) {
@@ -592,21 +838,29 @@ class Car {
         this.color = teamData.color;
         this.id = id; 
         
+        // --- TRUE TEAM SPECS FOR AI ---
         let diffSpeedMod = 1.0;
         let diffGripMod = 1.0;
 
+        this.maxSpeed = BASE_MAX_SPEED * teamData.speed;
+        this.turnRate = BASE_TURN_SPEED * teamData.handling;
+        this.grip = teamData.grip;
+
         if (!this.isPlayer) {
             if (difficultySetting === "ROOKIE") {
-                diffSpeedMod = 0.90; diffGripMod = 0.95;  
+                diffSpeedMod = 0.92;  
+                diffGripMod = 1.0;    
             } else if (difficultySetting === "LEGEND") {
-                diffSpeedMod = 1.04; diffGripMod = 1.20;
+                diffSpeedMod = 1.02;  
+                diffGripMod = 1.2;    
+            } else {
+                diffSpeedMod = 0.98;
+                diffGripMod = 1.1; 
             }
+            this.maxSpeed *= diffSpeedMod;
+            this.grip *= diffGripMod;
         }
 
-        this.maxSpeed = BASE_MAX_SPEED * teamData.speed * diffSpeedMod;
-        this.turnRate = BASE_TURN_SPEED * teamData.handling;
-        this.grip = teamData.grip * diffGripMod;
-        
         this.lap = 1;
         this.raceStartTime = 0; 
         this.currentLapStart = 0;
@@ -615,15 +869,11 @@ class Car {
         this.totalRaceTime = 0; 
         this.nextWaypointIndex = 0; 
         this.finished = false;
-        
         this.hasCrossedStartLine = false;
-
         this.aiSkill = skillLevel; 
-        this.turnError = (Math.random() - 0.5) * (0.3 / skillLevel); 
-        
         this.offTrackTimer = 0; 
         this.warningCount = 0;
-        this.stopPenaltyTime = 0; 
+        this.stopPenaltyTime = 0;
     }
 
     update() {
@@ -638,7 +888,6 @@ class Car {
         if (this.stopPenaltyTime > 0) {
             this.vx = 0; this.vy = 0;
             this.stopPenaltyTime -= 1/60; 
-            
             if (this.isPlayer) {
                 if(!isMultiplayer || this.controlScheme === 'WASD') {
                      document.getElementById('penalty-overlay').classList.remove('hidden');
@@ -655,26 +904,24 @@ class Car {
 
         const speed = Math.sqrt(this.vx**2 + this.vy**2);
 
-        // INPUT HANDLING
         let gas = false, brake = false, turnLeft = false, turnRight = false;
 
         if (this.controlScheme === 'WASD' && gameState === 'RACING') {
-            if (keys.w) gas = true;
-            if (keys.s) brake = true;
-            if (keys.a) turnLeft = true;
-            if (keys.d) turnRight = true;
+            if (keys.w) gas = true; if (keys.s) brake = true;
+            if (keys.a) turnLeft = true; if (keys.d) turnRight = true;
+            // Record P1 if ghost logic active
+            if(gas || brake || Math.abs(speed)>0.1) {
+                currentLapRecording.push({x: this.x, y: this.y, speed: speed});
+            }
         } 
         else if (this.controlScheme === 'ARROWS' && gameState === 'RACING') {
-            if (keys.arrowup) gas = true;
-            if (keys.arrowdown) brake = true;
-            if (keys.arrowleft) turnLeft = true;
-            if (keys.arrowright) turnRight = true;
+            if (keys.arrowup) gas = true; if (keys.arrowdown) brake = true;
+            if (keys.arrowleft) turnLeft = true; if (keys.arrowright) turnRight = true;
         }
         else if (this.controlScheme === 'AI' || gameState === 'MENU') {
             this.runAI();
         }
 
-        // Apply Physics
         if (this.isPlayer && gameState === 'RACING') {
              if (gas) { this.vx += Math.cos(this.angle)*BASE_ACCEL; this.vy += Math.sin(this.angle)*BASE_ACCEL; }
              if (brake) { this.vx -= Math.cos(this.angle)*BASE_ACCEL*0.5; this.vy -= Math.sin(this.angle)*BASE_ACCEL*0.5; }
@@ -708,7 +955,6 @@ class Car {
 
         this.x += this.vx; this.y += this.vy;
 
-        // MAP BOUNDARY CHECK
         if(this.x < boundMinX) { this.x = boundMinX + 1; this.vx *= -0.5; }
         if(this.x > boundMaxX) { this.x = boundMaxX - 1; this.vx *= -0.5; }
         if(this.y < boundMinY) { this.y = boundMinY + 1; this.vy *= -0.5; }
@@ -719,7 +965,6 @@ class Car {
 
     addWarning() {
         if(gameState === 'MENU') return;
-        
         this.warningCount++;
         if (this.isPlayer) {
             let elId = (this.controlScheme === 'WASD') ? 'p1-warn-count' : 'p2-warn-count';
@@ -729,7 +974,8 @@ class Car {
                 warnUi.style.color = this.warningCount >= 4 ? "red" : "white";
             }
         }
-        if (this.warningCount >= 5) this.triggerPenalty();
+        let limit = this.isPlayer ? 5 : 8; 
+        if (this.warningCount >= limit) this.triggerPenalty();
     }
 
     triggerPenalty() {
@@ -737,7 +983,6 @@ class Car {
         let penaltySeconds = (difficultySetting === "PRO") ? 5 : 10;
         this.stopPenaltyTime = penaltySeconds;
         this.warningCount = 0; 
-        
         if (this.isPlayer) {
             let elId = (this.controlScheme === 'WASD') ? 'p1-warn-count' : 'p2-warn-count';
             const warnUi = document.getElementById(elId);
@@ -746,36 +991,98 @@ class Car {
     }
 
     runAI() {
-        let target = activeTrack[this.nextWaypointIndex];
-        const timeVal = Date.now() * 0.005;
-        const jitterX = Math.sin(timeVal + this.id) * (20 / this.aiSkill);
+        const speed = Math.sqrt(this.vx**2 + this.vy**2);
         
-        const dx = (target.x + jitterX) - this.x;
+        // 1. FIND TARGET ON RACING LINE (Either Ghost or Calc)
+        // Find closest point on line ahead of us
+        const lookAheadDist = 200 + (speed * 12); 
+        
+        // Simple search for nearest node on racing line to start lookahead
+        // Optimization: start search from previous known index
+        let bestIdx = this.nextWaypointIndex; // Just use checkpoint logic index as approximation
+        // Actually, racingLine might be much more dense (ghost data)
+        // If racingLine is ghost data, it has hundreds/thousands of points.
+        // We need a robust way to find "Nearest point + lookahead"
+        
+        // If huge array (ghost), local search
+        if (racingLine.length > 500) {
+            // Local search around current position
+            // But we don't track an index for AI on ghost line yet.
+            // Let's iterate forward from last known?
+            // Simple approach: Use nextWaypointIndex which tracks TRACK nodes, mapping to line is hard.
+            // Better: AI tracks its own index on the racing line.
+            
+            if (typeof this.aiLineIndex === 'undefined') this.aiLineIndex = 0;
+            
+            // Advance index until it's ahead of us
+            let searchLimit = 50; 
+            while(searchLimit-- > 0) {
+                let curr = racingLine[this.aiLineIndex];
+                if (dist(this.x, this.y, curr.x, curr.y) < 150) {
+                    this.aiLineIndex = (this.aiLineIndex + 1) % racingLine.length;
+                } else {
+                    break; 
+                }
+            }
+            // Look ahead
+            let targetIdx = (this.aiLineIndex + 10) % racingLine.length; // +10 frames ahead
+            var target = racingLine[targetIdx];
+            var idealSpeed = target.idealSpeed; // Ghost speed
+        } else {
+            // Fallback (sparse nodes)
+            let targetIndex = this.nextWaypointIndex;
+            let distToNode = dist(this.x, this.y, racingLine[targetIndex].x, racingLine[targetIndex].y);
+            if (distToNode < lookAheadDist) {
+                let searchIndex = targetIndex;
+                let currentDist = distToNode;
+                while (currentDist < lookAheadDist) {
+                    searchIndex = (searchIndex + 1) % racingLine.length;
+                    currentDist += dist(racingLine[searchIndex].x, racingLine[searchIndex].y, 
+                                        racingLine[(searchIndex-1+racingLine.length)%racingLine.length].x, 
+                                        racingLine[(searchIndex-1+racingLine.length)%racingLine.length].y);
+                }
+                targetIndex = searchIndex;
+            }
+            var target = racingLine[targetIndex];
+            var idealSpeed = target.idealSpeed;
+        }
+
+        const dx = target.x - this.x;
         const dy = target.y - this.y;
         const targetAngle = Math.atan2(dy, dx);
         
-        let diff = (targetAngle + this.turnError) - this.angle;
+        let diff = targetAngle - this.angle;
         while (diff <= -Math.PI) diff += Math.PI*2;
         while (diff > Math.PI) diff -= Math.PI*2;
 
-        if (diff > this.turnRate) this.angle += this.turnRate;
-        else if (diff < -this.turnRate) this.angle -= this.turnRate;
+        let steerSpeed = this.turnRate;
+        if (diff > steerSpeed) this.angle += steerSpeed;
+        else if (diff < -steerSpeed) this.angle -= steerSpeed;
         else this.angle += diff;
 
-        let cornerSlowdown = 1.0;
-        if (Math.abs(diff) > 0.3) {
-            if (difficultySetting === "ROOKIE") cornerSlowdown = 0.3; 
-            else if (difficultySetting === "PRO") cornerSlowdown = 0.5;
-            else if (difficultySetting === "LEGEND") cornerSlowdown = 0.8; 
-        }
+        // 2. SPEED MATCHING (Ghost or Profile)
+        // If Ghost: idealSpeed is what player did.
+        // If Profile: idealSpeed is calculated physics max.
         
-        this.vx += Math.cos(this.angle) * (BASE_ACCEL * this.aiSkill * cornerSlowdown);
-        this.vy += Math.sin(this.angle) * (BASE_ACCEL * this.aiSkill * cornerSlowdown);
+        let skillFactor = 0.85 + ((this.aiSkill - 0.8) * 0.75); 
+        if (difficultySetting === "LEGEND") skillFactor = 1.05; 
+        
+        let targetSpeed = idealSpeed * skillFactor;
+        
+        if (speed > targetSpeed) {
+            let intensity = (speed - targetSpeed) / 5.0;
+            if(intensity > 1) intensity = 1;
+            this.vx *= (1.0 - (0.05 * intensity));
+            this.vy *= (1.0 - (0.05 * intensity));
+        } else if (speed < this.maxSpeed) {
+            this.vx += Math.cos(this.angle) * BASE_ACCEL * this.aiSkill;
+            this.vy += Math.sin(this.angle) * BASE_ACCEL * this.aiSkill;
+        }
     }
 
     checkWaypoints() {
-        const target = activeTrack[this.nextWaypointIndex];
-        if (dist(this.x, this.y, target.x, target.y) < TRACK_WIDTH * 1.5) {
+        const target = activeTrack[this.nextWaypointIndex]; 
+        if (dist(this.x, this.y, target.x, target.y) < TRACK_WIDTH * 2.0) {
             this.nextWaypointIndex++;
             if (this.nextWaypointIndex >= activeTrack.length) this.nextWaypointIndex = 0;
             
@@ -797,11 +1104,16 @@ class Car {
 
             if (this.controlScheme === 'WASD' && gameState === 'RACING') {
                 if (checkRecord(currentMapKey, this.lastLapTime)) {
+                    // Save Ghost
+                    saveGhost(currentMapKey, currentLapRecording);
+                    
                     const n = document.getElementById('new-record-msg');
                     n.style.display = 'block';
                     setTimeout(() => n.style.display = 'none', 3000);
                     document.getElementById('track-record').innerText = formatTime(trackRecords[currentMapKey]);
                 }
+                // Reset recording
+                currentLapRecording = [];
             }
         }
         this.currentLapStart = now;
@@ -911,6 +1223,59 @@ function generateGrandstands() {
     };
     for(let i=0; i<points.length-1; i++) addStand(points[i], points[i+1]);
     addStand(points[points.length-1], points[0]);
+    
+    generateDecorations();
+    generateRacingLine(); // Load Ghost or Fallback
+}
+
+function generateDecorations() {
+    if(!drawDecorationsEnabled) {
+        decorations = [];
+        return;
+    }
+    
+    decorations = [];
+    const numItems = 200;
+    
+    for(let i=0; i<numItems; i++) {
+        const x = mapMinX - 500 + Math.random() * (mapMaxX - mapMinX + 1000);
+        const y = mapMinY - 500 + Math.random() * (mapMaxY - mapMinY + 1000);
+        
+        if (!isPointInTrack(x, y)) {
+            const type = Math.random() > 0.7 ? 'ROCK' : 'TREE';
+            const size = 20 + Math.random() * 30;
+            const angle = Math.random() * Math.PI * 2;
+            decorations.push({x, y, type, size, angle});
+        }
+    }
+}
+
+function drawDecorations(ctx) {
+    if(!drawDecorationsEnabled) return;
+    
+    ctx.save();
+    decorations.forEach(d => {
+        ctx.translate(d.x, d.y);
+        ctx.rotate(d.angle);
+        
+        if(d.type === 'TREE') {
+            ctx.fillStyle = "rgba(0,0,0,0.3)";
+            ctx.beginPath(); ctx.arc(5, 5, d.size/2, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "#1b4d1b"; 
+            ctx.beginPath(); ctx.arc(0, 0, d.size/2, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "#2d6a2d"; 
+            ctx.beginPath(); ctx.arc(-2, -2, d.size/3, 0, Math.PI*2); ctx.fill();
+        } else {
+            ctx.fillStyle = "#555";
+            ctx.fillRect(-d.size/2, -d.size/2, d.size, d.size);
+            ctx.fillStyle = "#777";
+            ctx.fillRect(-d.size/2 + 2, -d.size/2 + 2, d.size-4, d.size-4);
+        }
+        
+        ctx.rotate(-d.angle);
+        ctx.translate(-d.x, -d.y);
+    });
+    ctx.restore();
 }
 
 function showMenu() {
@@ -1118,6 +1483,7 @@ function startMultiplayerRace() {
     document.getElementById('results-menu').classList.add('hidden');
     document.getElementById('penalty-overlay').classList.add('hidden');
     document.getElementById('leaderboard-view').classList.add('hidden');
+    document.getElementById('dev-recording-ui').style.display = 'none';
     
     document.getElementById('track-record').innerText = formatTime(trackRecords[currentMapKey]);
     
@@ -1148,6 +1514,10 @@ function startGame(isQuickRace) {
         document.getElementById('penalty-overlay').classList.add('hidden');
         document.getElementById('leaderboard-view').classList.add('hidden');
         
+        // Show recording UI
+        document.getElementById('dev-recording-ui').style.display = 'block';
+        currentLapRecording = [];
+        
         document.getElementById('track-record').innerText = formatTime(trackRecords[currentMapKey]);
         
         configureHUD();
@@ -1159,6 +1529,7 @@ function startGame(isQuickRace) {
 function configureHUD() {
     document.getElementById('p1-warn-count').innerText = "0";
     document.getElementById('p2-warn-count').innerText = "0";
+    document.getElementById('p1-warn-limit').innerText = "5"; 
 
     if (isMultiplayer) {
         document.getElementById('p1-hud').style.width = "50%";
@@ -1219,7 +1590,6 @@ function setupGrid(isDemo) {
                     seatPool.splice(idx2, 1);
                     gridSlots[p2Index] = { type: 'P2', teamId: selectedP2TeamId };
                 } else {
-                    // Fallback to random if preferred team full (shouldn't happen with 2 seats unless P1 picked same and pool empty logic failed, but standard logic handles 2 seats fine)
                     let rnd = seatPool.pop();
                     gridSlots[p2Index] = { type: 'P2', teamId: rnd };
                 }
@@ -1321,6 +1691,8 @@ function startCountdown() {
 function drawTrack(ctx) {
     ctx.save();
     
+    drawDecorations(ctx);
+
     ctx.lineWidth = 20;
     ctx.strokeStyle = "rgba(255, 255, 0, 0.2)"; 
     ctx.strokeRect(boundMinX, boundMinY, boundMaxX-boundMinX, boundMaxY-boundMinY);
@@ -1452,8 +1824,14 @@ function drawMiniMap() {
 
     const mapSize = 200;
     const margin = 20;
-    const originX = isMultiplayer ? (width/2 - mapSize/2) : margin;
-    const originY = height - mapSize - margin;
+    // Map is now Top Center in multiplayer, bottom left otherwise
+    let originX = margin;
+    let originY = height - mapSize - margin;
+    
+    if (isMultiplayer) {
+        originX = width/2 - mapSize/2;
+        originY = 20; // Top
+    }
 
     ctx.fillStyle = "rgba(0,0,0,0.8)";
     ctx.strokeStyle = "#e63946";
@@ -1500,6 +1878,21 @@ function drawMiniMap() {
 function updateUI() {
     if (gameState !== 'RACING' && gameState !== 'FINISHED') return;
 
+    const sorted = [...cars].sort((a,b) => {
+        if (a.finished && b.finished) return a.totalRaceTime - b.totalRaceTime;
+        if (a.finished) return -1;
+        if (b.finished) return 1;
+        
+        if (a.lap !== b.lap) return b.lap - a.lap;
+        if (a.nextWaypointIndex !== b.nextWaypointIndex) {
+            return b.nextWaypointIndex - a.nextWaypointIndex;
+        }
+        
+        let distA = dist(a.x, a.y, activeTrack[a.nextWaypointIndex].x, activeTrack[a.nextWaypointIndex].y);
+        let distB = dist(b.x, b.y, activeTrack[b.nextWaypointIndex].x, activeTrack[b.nextWaypointIndex].y);
+        return distA - distB; 
+    });
+
     const updatePlayerHUD = (player, prefix) => {
         const speed = Math.sqrt(player.vx**2 + player.vy**2) * 20; 
         document.getElementById(`${prefix}-speed`).innerText = Math.floor(speed);
@@ -1510,8 +1903,6 @@ function updateUI() {
         if(speed > 270) gear = "6"; if(player.finished) gear = "N";
         document.getElementById(`${prefix}-gear`).innerText = gear;
 
-        const getScore = (c) => (c.lap * 10000) + (10000 - dist(c.x, c.y, activeTrack[c.nextWaypointIndex].x, activeTrack[c.nextWaypointIndex].y)) + (c.nextWaypointIndex*1000);
-        const sorted = [...cars].sort((a,b) => getScore(b) - getScore(a));
         const rank = sorted.indexOf(player) + 1;
         
         document.getElementById(`${prefix}-pos-disp`).innerText = rank;
@@ -1565,8 +1956,10 @@ function showFinishScreen(rank, player) {
         document.getElementById('btn-standings').classList.remove('hidden');
         document.getElementById('btn-restart').innerText = "RESTART LEVEL";
         
-        const getScore = (c) => (c.lap * 10000) + (10000 - dist(c.x, c.y, activeTrack[c.nextWaypointIndex].x, activeTrack[c.nextWaypointIndex].y)) + (c.nextWaypointIndex*1000);
-        const sorted = [...cars].sort((a,b) => getScore(b) - getScore(a));
+        const sorted = [...cars].sort((a,b) => {
+             if (a.finished && b.finished) return a.totalRaceTime - b.totalRaceTime;
+             return 0; 
+        });
 
         let pts = 0;
         for(let i=0; i<sorted.length; i++) {
@@ -1605,6 +1998,15 @@ function renderScene(targetCar, cam) {
 
     ctx.save();
     ctx.translate(width/2, height/2); 
+    
+    // Dynamic Camera Rotation Logic
+    if (cameraRotationEnabled) {
+        // Rotate world opposite to car angle to keep car pointing Up
+        // Car 0 angle = Right. Screen Up is -PI/2.
+        // We want 0 -> -PI/2.
+        ctx.rotate(-targetCar.angle - Math.PI/2);
+    }
+
     ctx.scale(targetZoom, targetZoom); 
     ctx.translate(-cam.x, -cam.y);
     
@@ -1616,47 +2018,55 @@ function renderScene(targetCar, cam) {
 }
 
 function loop() {
-    ctx.fillStyle = "#203a20"; 
-    ctx.fillRect(0, 0, width, height);
-    
-    if (gameState !== 'PAUSED') {
-        cars.forEach(c => c.update());
-    }
-
-    if (isMultiplayer && gameState !== 'MENU') {
-        const p1 = cars.find(c => c.controlScheme === 'WASD');
-        const p2 = cars.find(c => c.controlScheme === 'ARROWS');
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(0, 0, width/2, height);
-        ctx.clip();
-        
-        ctx.translate(-width/4, 0); 
-        if(p1) renderScene(p1, camera);
-        ctx.restore();
-        
-        ctx.beginPath();
-        ctx.moveTo(width/2, 0); ctx.lineTo(width/2, height);
-        ctx.lineWidth = 4; ctx.strokeStyle = "#000"; ctx.stroke();
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(width/2, 0, width/2, height);
-        ctx.clip();
-        
-        ctx.translate(width/4, 0);
-        if(p2) renderScene(p2, cameraP2);
-        ctx.restore();
-
-    } else {
-        const followCar = (gameState === 'MENU' && cars.length > 0) ? cars[0] : cars.find(c => c.controlScheme === 'WASD');
-        if(followCar) renderScene(followCar, camera);
-    }
-    
-    drawMiniMap();
-    updateUI();
     requestAnimationFrame(loop);
+
+    const now = Date.now();
+    const elapsed = now - lastFrameTime;
+
+    if (elapsed > FRAME_INTERVAL) {
+        lastFrameTime = now - (elapsed % FRAME_INTERVAL);
+
+        ctx.fillStyle = "#203a20"; 
+        ctx.fillRect(0, 0, width, height);
+        
+        if (gameState !== 'PAUSED') {
+            cars.forEach(c => c.update());
+        }
+
+        if (isMultiplayer && gameState !== 'MENU') {
+            const p1 = cars.find(c => c.controlScheme === 'WASD');
+            const p2 = cars.find(c => c.controlScheme === 'ARROWS');
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(0, 0, width/2, height);
+            ctx.clip();
+            
+            ctx.translate(-width/4, 0); 
+            if(p1) renderScene(p1, camera);
+            ctx.restore();
+            
+            ctx.beginPath();
+            ctx.moveTo(width/2, 0); ctx.lineTo(width/2, height);
+            ctx.lineWidth = 4; ctx.strokeStyle = "#000"; ctx.stroke();
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(width/2, 0, width/2, height);
+            ctx.clip();
+            
+            ctx.translate(width/4, 0);
+            if(p2) renderScene(p2, cameraP2);
+            ctx.restore();
+
+        } else {
+            const followCar = (gameState === 'MENU' && cars.length > 0) ? cars[0] : cars.find(c => c.controlScheme === 'WASD');
+            if(followCar) renderScene(followCar, camera);
+        }
+        
+        drawMiniMap();
+        updateUI();
+    }
 }
 
 showMenu();
